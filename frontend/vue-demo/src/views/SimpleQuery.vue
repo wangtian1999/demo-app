@@ -8,7 +8,8 @@
       </div>
       <div class="header-actions">
         <button @click="showAddModal = true" class="add-btn">新增数据</button>
-        <button @click="logout" class="logout-btn">登出</button>
+        <button v-if="isAuthenticated" @click="logout" class="logout-btn">登出</button>
+        <button v-if="!isAuthenticated" @click="$router.push('/simple-login')" class="login-btn">登录</button>
         <button @click="$router.push('/')" class="back-btn">返回首页</button>
       </div>
     </div>
@@ -32,8 +33,12 @@
         <div class="quick-actions">
           <h3>快速操作</h3>
           <button @click="showAddModal = true" class="action-btn add">新增数据</button>
-          <button @click="exportData" class="action-btn export">导出数据</button>
+          <button v-if="isAuthenticated" @click="exportData" class="action-btn export">导出数据</button>
           <button @click="refreshData" class="action-btn refresh">刷新数据</button>
+          <div v-if="!isAuthenticated" class="guest-tip">
+            <p>游客模式：可查询和新增数据</p>
+            <p>登录后可使用更多功能</p>
+          </div>
         </div>
 
         <!-- 统计信息 -->
@@ -76,8 +81,9 @@
                 <td>{{ item.emission }}</td>
                 <td>{{ item.date }}</td>
                 <td class="actions">
-                  <button @click="editItem(item)" class="edit-btn">编辑</button>
-                  <button @click="deleteItem(item.id)" class="delete-btn">删除</button>
+                  <button v-if="isAuthenticated" @click="editItem(item)" class="edit-btn">编辑</button>
+                  <button v-if="isAuthenticated" @click="deleteItem(item.id)" class="delete-btn">删除</button>
+                  <span v-if="!isAuthenticated" class="guest-notice">请登录后操作</span>
                 </td>
               </tr>
             </tbody>
@@ -140,8 +146,10 @@ const checkAuth = () => {
   const role = localStorage.getItem('role')
   
   if (!token || !username) {
-    // 未登录，跳转到登录页面
-    router.push('/simple-login')
+    // 未登录状态，设置为游客模式
+    currentUser.value = '游客'
+    userRole.value = 'GUEST'
+    isAuthenticated.value = false
     return false
   }
   
@@ -280,11 +288,10 @@ const closeModal = () => {
   }
 }
 
-// 组件挂载时先检查认证状态，再初始化数据
+// 组件挂载时检查认证状态并初始化数据
 onMounted(() => {
-  if (checkAuth()) {
-    initData()
-  }
+  checkAuth() // 检查认证状态，无论是否登录都继续
+  initData() // 初始化数据，允许游客查看
 })
 </script>
 
@@ -690,6 +697,41 @@ onMounted(() => {
   display: block;
   max-height: calc(100vh - 240px);
   overflow-y: auto;
+}
+
+.guest-tip {
+  margin-top: 15px;
+  padding: 10px;
+  background: #f8f9fa;
+  border-radius: 5px;
+  border-left: 4px solid #007bff;
+}
+
+.guest-tip p {
+  margin: 5px 0;
+  font-size: 12px;
+  color: #6c757d;
+}
+
+.guest-notice {
+  color: #6c757d;
+  font-size: 12px;
+  font-style: italic;
+}
+
+.login-btn {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 5px;
+  cursor: pointer;
+  margin: 0 5px;
+  transition: background 0.3s ease;
+}
+
+.login-btn:hover {
+  background: #0056b3;
 }
 
 .data-table thead,
