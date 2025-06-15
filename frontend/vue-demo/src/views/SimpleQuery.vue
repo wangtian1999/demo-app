@@ -7,7 +7,8 @@
         <span class="role-badge">{{ userRole }}</span>
       </div>
       <div class="header-actions">
-        <button @click="showAddModal = true" class="add-btn">新增数据</button>
+        <button @click="openAddModal" class="add-btn">新增数据</button>
+        <button @click="$router.push('/file-management')" class="nav-btn">文件管理</button>
         <button v-if="isAuthenticated" @click="logout" class="logout-btn">登出</button>
         <button v-if="!isAuthenticated" @click="$router.push('/simple-login')" class="login-btn">登录</button>
         <button @click="$router.push('/')" class="back-btn">返回首页</button>
@@ -32,7 +33,7 @@
         <!-- 快速操作 -->
         <div class="quick-actions">
           <h3>快速操作</h3>
-          <button @click="showAddModal = true" class="action-btn add">新增数据</button>
+          <button @click="openAddModal" class="action-btn add">新增数据</button>
           <button v-if="isAuthenticated" @click="exportData" class="action-btn export">导出数据</button>
           <button @click="refreshData" class="action-btn refresh">刷新数据</button>
           <div v-if="!isAuthenticated" class="guest-tip">
@@ -96,6 +97,13 @@
     <div v-if="showAddModal || showEditModal" class="modal-overlay" @click="closeModal">
       <div class="modal-content" @click.stop>
         <h3>{{ showAddModal ? '新增数据' : '编辑数据' }}</h3>
+        <!-- 调试信息 -->
+        <div style="background: #f0f0f0; padding: 10px; margin-bottom: 10px; font-size: 12px; border-radius: 4px;">
+          <p>调试信息：</p>
+          <p>showAddModal: {{ showAddModal }}</p>
+          <p>showEditModal: {{ showEditModal }}</p>
+          <p>表单数据: {{ JSON.stringify(formData) }}</p>
+        </div>
         <form @submit.prevent="submitForm">
           <div class="form-group">
             <label>企业名称</label>
@@ -185,7 +193,47 @@ const formData = ref({
 })
 
 // 初始化数据
-const initData = () => {
+const initData = async () => {
+  try {
+    console.log('开始从后端获取数据列表')
+    const response = await fetch('http://localhost:8080/api/emissions/all', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+    
+    if (response.ok) {
+      const result = await response.json()
+      if (result.success && result.data) {
+        // 将后端数据格式转换为前端需要的格式
+        dataList.value = result.data.map(item => ({
+          id: item.id,
+          company: item.enterpriseName,
+          type: '工业排放', // 后端暂时没有类型字段，使用默认值
+          emission: item.emissionAmount,
+          date: item.emissionDate
+        }))
+        console.log('成功获取数据列表:', dataList.value)
+      } else {
+        console.error('后端返回错误:', result.message)
+        // 如果获取失败，使用默认数据
+        setDefaultData()
+      }
+    } else {
+      console.error('获取数据失败，HTTP状态:', response.status)
+      // 如果获取失败，使用默认数据
+      setDefaultData()
+    }
+  } catch (error) {
+    console.error('获取数据时发生错误:', error)
+    // 如果获取失败，使用默认数据
+    setDefaultData()
+  }
+}
+
+// 设置默认数据（作为备用）
+const setDefaultData = () => {
   dataList.value = [
     { id: 1, company: '绿色科技有限公司', type: '工业排放', emission: 125.5, date: '2024-01-15' },
     { id: 2, company: '环保能源集团', type: '能源消耗', emission: 89.2, date: '2024-01-16' },
@@ -219,24 +267,151 @@ const handleSearch = () => {
 
 // 导出数据
 const exportData = () => {
-  alert('导出功能开发中...')
+  if (dataList.value.length === 0) {
+    alert('暂无数据可导出')
+    return
+  }
+
+  try {
+    // 准备CSV数据
+    const headers = ['序号', '企业名称', '数据类型', '排放量(吨)', '日期']
+    const csvContent = []
+    
+    // 添加表头
+    csvContent.push(headers.join(','))
+    
+    // 添加数据行
+    dataList.value.forEach((item, index) => {
+      const row = [
+        index + 1,
+        `"${item.company}"`, // 用引号包围，防止逗号问题
+        `"${item.type}"`,
+        item.emission,
+        item.date
+      ]
+      csvContent.push(row.join(','))
+    })
+    
+    // 创建CSV文件内容
+    const csvString = csvContent.join('\n')
+    
+    // 添加BOM以支持中文
+    const BOM = '\uFEFF'
+    const csvWithBOM = BOM + csvString
+    
+    // 创建Blob对象
+    const blob = new Blob([csvWithBOM], { type: 'text/csv;charset=utf-8;' })
+    
+    // 创建下载链接
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    
+    // 生成文件名（包含当前日期时间）
+    const now = new Date()
+    const timestamp = now.getFullYear() + 
+      String(now.getMonth() + 1).padStart(2, '0') + 
+      String(now.getDate()).padStart(2, '0') + '_' +
+      String(now.getHours()).padStart(2, '0') + 
+      String(now.getMinutes()).padStart(2, '0')
+    
+    link.setAttribute('download', `碳排放数据_${timestamp}.csv`)
+    link.style.visibility = 'hidden'
+    
+    // 触发下载
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    
+    // 清理URL对象
+    URL.revokeObjectURL(url)
+    
+    alert(`成功导出 ${dataList.value.length} 条数据！`)
+    
+  } catch (error) {
+    console.error('导出数据时发生错误:', error)
+    alert('导出数据失败，请重试')
+  }
 }
 
 // 刷新数据
-const refreshData = () => {
-  initData()
+const refreshData = async () => {
+  await initData()
   alert('数据已刷新')
 }
 
+// 打开新增模态框
+const openAddModal = () => {
+  console.log('点击新增数据按钮')
+  showAddModal.value = true
+  console.log('新增模态框状态已设置为true:', showAddModal.value)
+}
+
 // 新增数据
-const addItem = () => {
-  const newId = Math.max(...dataList.value.map(item => item.id)) + 1
-  dataList.value.push({
-    id: newId,
-    ...formData.value,
-    emission: parseFloat(formData.value.emission)
-  })
-  closeModal()
+const addItem = async () => {
+  console.log('开始新增数据，表单数据：', formData.value)
+  
+  // 验证表单数据
+  if (!formData.value.company || !formData.value.emission || !formData.value.date) {
+    console.error('表单数据不完整：', formData.value)
+    alert('请填写完整的表单信息（企业名称、排放量、日期）')
+    return
+  }
+  
+  try {
+    const token = localStorage.getItem('token')
+    console.log('获取到的token：', token)
+    
+    const requestData = {
+      enterpriseName: formData.value.company,
+      emissionAmount: parseFloat(formData.value.emission),
+      emissionDate: formData.value.date
+    }
+    
+    console.log('准备发送到后端的数据：', requestData)
+    console.log('调用后端API: POST http://localhost:8080/api/emissions')
+    
+    const response = await fetch('http://localhost:8080/api/emissions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+        // 移除Authorization头部，允许不登录访问
+      },
+      body: JSON.stringify(requestData)
+    })
+    
+    console.log('后端API响应状态：', response.status)
+     console.log('响应头Content-Type：', response.headers.get('content-type'))
+     
+     // 先获取原始响应文本
+     const responseText = await response.text()
+     console.log('原始响应文本：', responseText)
+     
+     let result
+     try {
+       result = JSON.parse(responseText)
+       console.log('解析后的JSON数据：', result)
+     } catch (jsonError) {
+       console.error('JSON解析失败：', jsonError)
+       console.error('无法解析的响应内容：', responseText)
+       alert('服务器返回了无效的JSON格式：' + responseText.substring(0, 200))
+       return
+     }
+    
+    if (response.ok && result.success) {
+      console.log('数据新增成功，重新获取数据列表')
+      alert('数据新增成功！')
+      closeModal()
+      // 重新获取数据列表
+      await refreshData()
+    } else {
+      console.error('后端返回错误：', result.message)
+      alert('新增失败：' + (result.message || '未知错误'))
+    }
+  } catch (error) {
+    console.error('新增数据时发生错误：', error)
+    alert('新增数据失败，请重试：' + error.message)
+  }
 }
 
 // 编辑数据
@@ -247,36 +422,119 @@ const editItem = (item) => {
 }
 
 // 更新数据
-const updateItem = () => {
-  const index = dataList.value.findIndex(item => item.id === currentEditId.value)
-  if (index !== -1) {
-    dataList.value[index] = {
-      ...formData.value,
-      id: currentEditId.value,
-      emission: parseFloat(formData.value.emission)
+const updateItem = async () => {
+  try {
+    console.log('开始更新数据，ID:', currentEditId.value)
+    console.log('更新的表单数据:', formData.value)
+    
+    // 验证表单数据
+    if (!formData.value.company || !formData.value.emission || !formData.value.date) {
+      console.error('表单数据不完整：', formData.value)
+      alert('请填写完整的表单信息（企业名称、排放量、日期）')
+      return
     }
+    
+    const requestData = {
+      enterpriseName: formData.value.company,
+      emissionAmount: parseFloat(formData.value.emission),
+      emissionDate: formData.value.date
+    }
+    
+    console.log('准备发送到后端的更新数据：', requestData)
+    
+    const response = await fetch(`http://localhost:8080/api/emissions/${currentEditId.value}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestData)
+    })
+    
+    console.log('更新API响应状态:', response.status)
+    
+    if (response.ok) {
+      const result = await response.json()
+      console.log('更新API响应数据:', result)
+      
+      if (result.success) {
+        console.log('数据更新成功，刷新数据列表')
+        alert('数据更新成功！')
+        closeModal()
+        // 重新获取数据列表
+        await refreshData()
+      } else {
+        console.error('后端返回更新失败:', result.message)
+        alert('更新失败：' + (result.message || '未知错误'))
+      }
+    } else {
+      console.error('更新请求失败，HTTP状态:', response.status)
+      alert('更新请求失败，请重试')
+    }
+  } catch (error) {
+    console.error('更新数据时发生错误:', error)
+    alert('更新数据失败，请重试：' + error.message)
   }
-  closeModal()
 }
 
 // 删除数据
-const deleteItem = (id) => {
+const deleteItem = async (id) => {
   if (confirm('确定要删除这条记录吗？')) {
-    dataList.value = dataList.value.filter(item => item.id !== id)
+    try {
+      console.log('开始删除数据，ID:', id)
+      
+      const response = await fetch(`http://localhost:8080/api/emissions/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+      
+      console.log('删除API响应状态:', response.status)
+      
+      if (response.ok) {
+        const result = await response.json()
+        console.log('删除API响应数据:', result)
+        
+        if (result.success) {
+          console.log('数据删除成功，刷新数据列表')
+          alert('数据删除成功！')
+          // 重新获取数据列表
+          await refreshData()
+        } else {
+          console.error('后端返回删除失败:', result.message)
+          alert('删除失败：' + (result.message || '未知错误'))
+        }
+      } else {
+        console.error('删除请求失败，HTTP状态:', response.status)
+        alert('删除请求失败，请重试')
+      }
+    } catch (error) {
+      console.error('删除数据时发生错误:', error)
+      alert('删除数据失败，请重试：' + error.message)
+    }
   }
 }
 
 // 提交表单
 const submitForm = () => {
+  console.log('表单提交被触发')
+  console.log('当前模态框状态 - showAddModal:', showAddModal.value, 'showEditModal:', showEditModal.value)
+  console.log('当前表单数据：', formData.value)
+  
   if (showAddModal.value) {
+    console.log('执行新增数据操作')
     addItem()
-  } else {
+  } else if (showEditModal.value) {
+    console.log('执行更新数据操作')
     updateItem()
+  } else {
+    console.error('未知的表单提交状态')
   }
 }
 
 // 关闭弹窗
 const closeModal = () => {
+  console.log('关闭模态框')
   showAddModal.value = false
   showEditModal.value = false
   currentEditId.value = null
@@ -286,12 +544,13 @@ const closeModal = () => {
     emission: '',
     date: ''
   }
+  console.log('模态框已关闭，表单数据已重置')
 }
 
 // 组件挂载时检查认证状态并初始化数据
-onMounted(() => {
+onMounted(async () => {
   checkAuth() // 检查认证状态，无论是否登录都继续
-  initData() // 初始化数据，允许游客查看
+  await initData() // 初始化数据，允许游客查看
 })
 </script>
 
@@ -389,6 +648,36 @@ onMounted(() => {
 
 .back-btn:hover {
   background: #5a6268;
+}
+
+.nav-btn {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.3s ease;
+}
+
+.nav-btn:hover {
+  background: #0056b3;
+}
+
+.login-btn {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.3s ease;
+}
+
+.login-btn:hover {
+  background: #218838;
 }
 
 .main-content {

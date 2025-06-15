@@ -12,7 +12,7 @@
     </section>
 
     <!-- 功能特色区域 -->
-    <section class="features-section">
+    <!-- <section class="features-section">
       <h2 class="section-title">核心功能</h2>
       <div class="features-grid">
         <div class="feature-card">
@@ -36,7 +36,7 @@
           <p>设定减排目标并跟踪进度，助力企业实现碳中和目标</p>
         </div>
       </div>
-    </section>
+    </section> -->
 
     <!-- 快速操作区域 -->
     <section class="actions-section">
@@ -52,6 +52,19 @@
           <div class="action-icon">📊</div>
           <h3>查看数据</h3>
           <p>浏览和分析碳排放数据</p>
+          <span class="action-arrow">→</span>
+        </router-link>
+        <router-link to="/simple-query" class="action-card">
+          <div class="action-icon">📊</div>
+          <h3>数据管理</h3>
+          <p>管理和查询碳排放数据</p>
+          <span class="action-arrow">→</span>
+        </router-link>
+        
+        <router-link to="/file-management" class="action-card">
+          <div class="action-icon">📁</div>
+          <h3>文件管理</h3>
+          <p>上传、下载和管理文件</p>
           <span class="action-arrow">→</span>
         </router-link>
       </div>

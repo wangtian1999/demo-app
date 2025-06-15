@@ -53,6 +53,9 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**").permitAll()
                 // 允许基础接口无需认证
                 .requestMatchers("/", "/hello", "/api/status").permitAll()
+                // 临时允许碳排放API无需认证（后续需要添加JWT过滤器）
+                .requestMatchers("/api/emissions/**").permitAll()
+                .requestMatchers("/api/files/**").permitAll()
                 // 其他请求需要认证
                 .anyRequest().authenticated()
             );
